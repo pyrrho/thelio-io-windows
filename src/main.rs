@@ -107,8 +107,8 @@ fn driver() -> io::Result<()> {
     let curve = match (sys_vendor.as_str(), product_version.as_str()) {
         ("System76", "thelio-mira-r1" | "thelio-mira-r2" | "thelio-mira-r3"
                    | "thelio-mira-b1" | "thelio-mira-b2" | "thelio-mira-b3" | "thelio-mira-b4") => {
-            log::debug!("{} {} uses standard fan curve", sys_vendor, product_version);
-            FanCurve::standard()
+            log::debug!("{} {} uses 'standard_smooth' fan curve", sys_vendor, product_version);
+            FanCurve::standard_smooth()
         },
         ("System76", "thelio-major-r1") => {
             log::debug!("{} {} uses threadripper2 fan curve", sys_vendor, product_version);
