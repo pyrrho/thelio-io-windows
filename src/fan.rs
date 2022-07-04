@@ -115,6 +115,20 @@ impl FanCurve {
             .append(78_00, 100_00)
     }
 
+    /// A more aggressive, smoother fan curve
+    pub fn standard_smooth() -> Self {
+        Self::default()
+            .append(44_99,   0_00)
+            .append(45_00,  30_00)
+            .append(65_00,  40_00)
+            .append(75_00,  52_00)
+            .append(78_00,  60_00)
+            .append(81_00,  70_00)
+            .append(83_00,  80_00)
+            .append(84_00,  90_00)
+            .append(85_00, 100_00)
+    }
+
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
         // If the temp is less than the first point, return the first point duty
         if let Some(first) = self.points.first() {
