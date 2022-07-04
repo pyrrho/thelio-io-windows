@@ -37,21 +37,44 @@ use windows_service::{
     },
 };
 
+/// Duration to wait between sensor polling requests.
+const POLLING_DELAY: Duration = Duration::from_secs(1);
+/// Duration to keep fans high after temperatures drop.
+const SPIN_DOWN_DELAY: Duration = Duration::from_secs(3);
+
 fn driver_loop(curve: &FanCurve, ios: &mut [Io], wrapper: &mut Child) -> io::Result<()> {
     let mut wrapper_in = wrapper.stdin.take().unwrap();
     let mut wrapper_out = BufReader::new(wrapper.stdout.take().unwrap());
 
+    // Build a poor-man's ring buffer that will store reported temperatures for SPIN_DOWN_DELAY.
+    // The intent is to set the fans' duty cycle based on the highest temperature in the ring
+    // buffer, rather than the most recent, preventing the fans from decreasing in speed until
+    // SPIN_DOWN_DELAY has elapsed.
+    // TODO: When `Duration::as_secs_f32()` is stabilized as a const fn, this can be made const.
+    let points_in_spin_down = (SPIN_DOWN_DELAY.as_secs_f32()/POLLING_DELAY.as_secs_f32()).ceil() as usize;
+    let mut recent_temps = vec![0.0; points_in_spin_down];
+    let mut recent_temps_i = 0; // ring buffer index
+
     loop {
+        // Write a newline to the thelio-io_wrapper.exe process to unblock its `Console.ReadLine()`.
         wrapper_in.write_all(b"\n")?;
         let mut line = String::new();
         wrapper_out.read_line(&mut line)?;
 
-        let temp = line.trim().parse::<f64>().map_err(|err| {
+        // This will be the highest temperature read from all available sensors.
+        // TODO: Is it possible to report individual component temperatures, or does that require
+        //       pre-motherboard configuration?
+        let read_temp = line.trim().parse::<f64>().map_err(|err| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 err
             )
         })?;
+
+        recent_temps[recent_temps_i] = read_temp;
+        recent_temps_i = (recent_temps_i + 1) % points_in_spin_down;
+
+        let temp = recent_temps.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
 
         if let Some(duty) = curve.get_duty((temp * 100.0) as i16) {
             for io in ios.iter_mut() {
@@ -66,7 +89,7 @@ fn driver_loop(curve: &FanCurve, ios: &mut [Io], wrapper: &mut Child) -> io::Res
             }
         }
 
-        sleep(Duration::new(1, 0));
+        sleep(POLLING_DELAY);
     }
 }
 
